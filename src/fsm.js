@@ -1,31 +1,3 @@
-/*
-    #trigger
-      5) changes initial state according to event
-      6) correctly changes states [3 in row]
-      7) correctly changes states [circular]
-      8) throws an exception if event in current state isn't exist
-    #getStates
-      10) returns all states if argument is empty
-      11) returns correct states for event
-      12) returns empty array for not valid array
-    #undo
-      13) returns false for initial FSM
-      14) goes back to prev step after trigger
-      15) goes back to prev after changeState
-      16) returns true if transition was successful
-      17) returns false if undo is not available
-    #redo
-      18) returns false for initial FSM
-      19) cancels undo
-      20) returns true if transition was successful
-      21) returns false if redo is not available
-      22) correct cancels multiple undos
-      23) disables redo after trigger call
-      24) disables redo after changeState call
-    #clearHistory
-      25) clears transition history
-*/
-
 class FSM {
     /**
      * Creates new FSM instance.
@@ -38,6 +10,9 @@ class FSM {
         } else {
             this.config = config;
             this.state = 'normal';
+            this.redoState = [];
+            this.redoFlag = false;
+            this.history = [];
             return this;
         }          
     }
@@ -55,52 +30,90 @@ class FSM {
      * @param state
      */
     changeState(state) {
-        var listState = ['normal', 'busy', 'hungry', 'sleeping'];
-        if (state != this.state && listState.indexOf(state) != -1 ) {
+        var listState = ['normal', 'busy', 'hungry', 'sleeping'];    
+        if (listState.indexOf(state) != -1 ) {
+            this.history.push(this.state);
             this.state = state;
+            this.redoState = [];
+            this.redoFlag = false;
         } else {
             throw new Error();
         }
     }
-
+    eat() {
+        if (this.state == 'hungry') {
+            this.history.push(this.state);
+            this.state = 'normal';            
+        } else {
+            throw new Error();
+        }
+    }
+    study() {
+        if (this.state == 'normal') {
+            this.history.push(this.state);
+            this.state = 'busy';
+        } else {
+            throw new Error();
+        }
+    }
+    getUp() {
+        if (this.state == 'sleeping') {
+            this.history.push(this.state);
+            this.state = 'normal';
+        } else {
+            throw new Error();
+        }
+    }
+    getTired() {
+        if (this.state == 'busy') {
+            this.history.push(this.state);
+            this.state = 'sleeping';
+        } else {
+            throw new Error();
+        }
+    }
+    getHungry() {
+        if (this.state == 'sleeping' || this.state == 'busy') {
+            this.history.push(this.state);
+            this.state = 'hungry';
+        } else {
+            throw new Error();
+        }
+    }
     /**
      * Changes state according to event transition rules.
      * @param event
+     * 
      */
+    
     trigger(event) {
 
         var status = new Map();
         status.set("study","busy");
-        status.set("get tired","sleeping");
-        status.set("get up","normal");
-        status.set("get hungry","hungry");
+        status.set("get_tired","sleeping");
+        status.set("get_up","normal");
+        status.set("get_hungry","hungry");
         status.set("eat","normal");
-
-        var move = [
-            ['normal','study'],
-            ['busy','get tired'],
-            ['busy','get hungry'],
-            ['sleeping','get up'],
-            ['sleeping','get hungry'],
-            ['hungry','eat']
-          ];
         
-        var list = [];
+        this.redoState = [];
+        this.redoFlag = false;
 
-        for (var i = 0; i< move.length; i++) {
-            if (move[i][0] == this.state) {
-                list.push(move[i][1]);
-            }         
+        switch(event) {
+            case 'eat':  
+                return this.eat();
+            case 'study': 
+                return this.study();
+            case 'get_tired': 
+                return this.getTired();
+            case 'get_up': 
+                return this.getUp();
+            case 'get_hungry': 
+                return this.getHungry();
+            default:
+                throw new Error();
         }
-        this.state = status.get(event);
-        /*if (move.indexOf(event) != -1) {
-            this.state = status.get(event);
-        } else {
-            throw new Error();
-        }*/
-        
-
     }
+
 
     /**
      * Resets FSM state to initial.
@@ -116,11 +129,26 @@ class FSM {
      * @returns {Array}
      */
     getStates(event) {
-        var listState = ['normal', 'busy', 'hungry', 'sleeping'];
+        var listState = ['normal', 'busy', 'hungry', 'sleeping'],
+            states = [];
+
         if (event == null) {
             return listState;
         } else {
-
+            switch(event) {
+                case 'eat':  
+                    return ['hungry'];
+                case 'study': 
+                    return ['normal'];
+                case 'get_tired': 
+                    return ['busy'];
+                case 'get_up': 
+                    return ['sleeping'];
+                case 'get_hungry': 
+                    return ['busy','sleeping'];
+                default:
+                    return [];
+              }
         }
     }
 
@@ -129,19 +157,41 @@ class FSM {
      * Returns false if undo is not available.
      * @returns {Boolean}
      */
-    undo() {}
+    undo() {
+        if (this.history.length != 0) {
+            this.redoState.push(this.state);
+            var prevState = this.history.pop();
+            this.history.pop();
+            this.state = prevState;
+            this.redoFlag = true;
+        } else{
+            return false;
+        }
+        return true;
+    }
 
     /**
      * Goes redo to state.
      * Returns false if redo is not available.
      * @returns {Boolean}
+     *   
      */
-    redo() {}
+    redo() {
+        if ((this.history.length != 0 || this.redoState.length != 0) && this.redoFlag) {
+            this.state = this.redoState.pop();
+            this.redoState.pop();
+            return true;
+        } else{
+            return false;
+        }
+    }
 
     /**
      * Clears transition history
      */
-    clearHistory() {}
+    clearHistory() {
+        this.history = [];
+    }
 }
 
 module.exports = FSM;
